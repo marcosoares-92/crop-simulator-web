@@ -1,0 +1,9 @@
+flask==3.0.3
+gunicorn==22.0.0
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.6.1
+tensorflow==2.16.2
+matplotlib==3.8.4
+openpyxl==3.1.5
+Werkzeug==3.0.3

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crop Simulator — Produção Rural</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+<body data-lang="{{ lang }}">
+  <div class="sky"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1 data-i18n="title">Crop Simulator</h1>
+        <p class="brand-sub" data-i18n="subtitle">Painel de Controle da Produção Rural</p>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi">
+        <span class="kpi-label" data-i18n="kpi_sims">SIMULAÇÕES</span>
+        <span class="kpi-value" id="kpi-sims">0</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label" data-i18n="kpi_mean">GY MÉDIA</span>
+        <span class="kpi-value" id="kpi-mean">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label" data-i18n="kpi_range">GY MIN–MAX</span>
+        <span class="kpi-value" id="kpi-range">—</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label" data-i18n="kpi_days">DIAS</span>
+        <span class="kpi-value" id="kpi-days">—</span>
+      </div>
+    </div>
+    <div class="lang-toggle">
+      <button type="button" class="lang-btn active" data-lang="pt" id="btn-pt">PT</button>
+      <button type="button" class="lang-btn" data-lang="en" id="btn-en">EN</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" class="tab active" data-tab="farm" data-i18n="tab_farm">PLANTAÇÃO</button>
+    <button type="button" class="tab" data-tab="data" data-i18n="tab_data">DADOS E GRÁFICOS</button>
+    <button type="button" class="tab" data-tab="guide" data-i18n="tab_guide">GUIA DOS PARÂMETROS</button>
+    <button type="button" class="tab" data-tab="about" data-i18n="tab_about">MISSÃO E APOIO</button>
+  </nav>
+
+  <main>
+    <section class="panel tab-panel active" id="panel-farm">
+      <div class="farm-stage">
+        <div class="farm-map">
+          <div class="farm-bg" style="background-image:url('{{ url_for('static', filename='img/farm_map.jpg') }}')"></div>
+          <div class="hotspot hs-field">
+            <span class="hs-title" data-i18n="hs_field">Campo</span>
+            <span class="hs-val" id="hs-cultivar">MONSOY 8330I2X</span>
+          </div>
+          <div class="hotspot hs-ph">
+            <span class="hs-title">PH</span>
+            <span class="hs-val" id="hs-ph">63.3 cm</span>
+          </div>
+          <div class="hotspot hs-yield">
+            <span class="hs-title" data-i18n="hs_yield">Produtividade</span>
+            <span class="hs-val" id="hs-yield">— kg/ha</span>
+          </div>
+          <div class="map-inset">
+            <img src="{{ url_for('static', filename='img/americas.jpg') }}" alt="Americas map" />
+          </div>
+        </div>
+
+        <aside class="controls">
+          <h2 data-i18n="controls_title">Condições de cultivo</h2>
+          <p class="controls-hint" data-i18n="controls_hint">Abra cada item para ver o significado do parâmetro. Depois use os botões da barra inferior.</p>
+
+          <details class="param-help open-default" open>
+            <summary data-i18n="help_dates_sum">Datas da simulação</summary>
+            <p data-i18n="help_dates">Definem o período diário da série. O modelo prevê produtividade (GY) para cada dia entre início e fim (máx. 800 dias neste demo).</p>
+            <label class="field">
+              <span data-i18n="lbl_start">Início</span>
+              <input type="date" id="start_date" value="2024-02-21" />
+            </label>
+            <label class="field">
+              <span data-i18n="lbl_end">Fim</span>
+              <input type="date" id="end_date" value="2025-10-01" />
+            </label>
+          </details>
+
+          <details class="param-help" open>
+            <summary data-i18n="help_cultivar_sum">Híbrido / cultivar</summary>
+            <p data-i18n="help_cultivar">Uma entre 40 cultivares do experimento público (UCI). Doze delas entram com one-hot no LSTM; as demais usam codificação zero.</p>
+            <label class="field">
+              <span data-i18n="lbl_cultivar">Híbrido</span>
+              <select id="cultivar">
+                {% for c in cultivars %}
+                <option value="{{ c }}" {% if c == 'MONSOY 8330I2X' %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </details>
+
+          <details class="param-help">
+            <summary data-i18n="help_ph_sum">PH — Altura da planta (cm)</summary>
+            <p data-i18n="help_ph">Altura do solo até a inserção da última folha (régua milimetrada). Faixa experimental aproximada: 47,6–94,8 cm.</p>
+            <label class="slider-field">
+              <span class="slider-head"><span data-i18n="lbl_ph">Altura da planta (PH, cm)</span><strong id="val-PH">{{ ranges.PH.default }}</strong></span>
+              <input type="range" id="PH" min="{{ ranges.PH.min }}" max="{{ ranges.PH.max }}" step="{{ ranges.PH.step }}" value="{{ ranges.PH.default }}" />
+            </label>
+          </details>
+
+          <details class="param-help">
+            <summary data-i18n="help_ifp_sum">IFP — Inserção da 1ª vagem (cm)</summary>
+            <p data-i18n="help_ifp">Altura do solo até a inserção da primeira vagem. Faixa: 7,2–26,4 cm.</p>
+            <label class="slider-field">
+              <span class="slider-head"><span data-i18n="lbl_ifp">Inserção da vagem (IFP, cm)</span><strong id="val-IFP">{{ ranges.IFP.default }}</strong></span>
+              <input type="range" id="IFP" min="{{ ranges.IFP.min }}" max="{{ ranges.IFP.max }}" step="{{ ranges.IFP.step }}" value="{{ ranges.IFP.default }}" />
+            </label>
+          </details>
+
+          <details class="param-help">
+            <summary data-i18n="help_nlp_sum">NLP — Hastes e ramos</summary>
+            <p data-i18n="help_nlp">Número de hastes/ramos por contagem manual. Também alimenta NGP (leguminosas/planta) por regressão linear. Faixa: 20,2–123.</p>
+            <label class="slider-field">
+              <span class="slider-head"><span data-i18n="lbl_nlp">Hastes e ramos (NLP)</span><strong id="val-NLP">{{ ranges.NLP.default }}</strong></span>
+              <input type="range" id="NLP" min="{{ ranges.NLP.min }}" max="{{ ranges.NLP.max }}" step="{{ ranges.NLP.step }}" value="{{ ranges.NLP.default }}" />
+            </label>
+          </details>
+
+          <details class="param-help">
+            <summary data-i18n="help_ngl_sum">NGL — Grãos por planta</summary>
+            <p data-i18n="help_ngl">Número de grãos por planta (contagem). Faixa: 0,94–14,86.</p>
+            <label class="slider-field">
+              <span class="slider-head"><span data-i18n="lbl_ngl">Grãos por planta (NGL)</span><strong id="val-NGL">{{ ranges.NGL.default }}</strong></span>
+              <input type="range" id="NGL" min="{{ ranges.NGL.min }}" max="{{ ranges.NGL.max }}" step="{{ ranges.NGL.step }}" value="{{ ranges.NGL.default }}" />
+            </label>
+          </details>
+
+          <details class="param-help">
+            <summary data-i18n="help_ns_sum">NS — Grãos por vagem</summary>
+            <p data-i18n="help_ns">Número de grãos por vagem (contagem). Faixa: 0,4–9,0.</p>
+            <label class="slider-field">
+              <span class="slider-head"><span data-i18n="lbl_ns">Grãos por vagem (NS)</span><strong id="val-NS">{{ ranges.NS.default }}</strong></span>
+              <input type="range" id="NS" min="{{ ranges.NS.min }}" max="{{ ranges.NS.max }}" step="{{ ranges.NS.step }}" value="{{ ranges.NS.default }}" />
+            </label>
+          </details>
+
+          <details class="param-help">
+            <summary data-i18n="help_mhg_sum">MHG — Massa de mil sementes (g)</summary>
+            <p data-i18n="help_mhg">Thousand seed weight (massa de mil sementes), em gramas. Faixa: 127,1–216,0 g.</p>
+            <label class="slider-field">
+              <span class="slider-head"><span data-i18n="lbl_mhg">Massa de mil sementes (MHG, g)</span><strong id="val-MHG">{{ ranges.MHG.default }}</strong></span>
+              <input type="range" id="MHG" min="{{ ranges.MHG.min }}" max="{{ ranges.MHG.max }}" step="{{ ranges.MHG.step }}" value="{{ ranges.MHG.default }}" />
+            </label>
+          </details>
+        </aside>
+      </div>
+
+      <footer class="status-bar">
+        <div class="status-meters">
+          <div><span>PH</span><em id="meter-PH">{{ ranges.PH.default }}</em></div>
+          <div><span>IFP</span><em id="meter-IFP">{{ ranges.IFP.default }}</em></div>
+          <div><span>NLP</span><em id="meter-NLP">{{ ranges.NLP.default }}</em></div>
+          <div><span>NGL</span><em id="meter-NGL">{{ ranges.NGL.default }}</em></div>
+          <div><span>NS</span><em id="meter-NS">{{ ranges.NS.default }}</em></div>
+          <div><span>MHG</span><em id="meter-MHG">{{ ranges.MHG.default }}</em></div>
+        </div>
+        <p class="gazette" id="gazette" data-i18n="gazette_idle">Gazeta da fazenda: aguardando partida da simulação.</p>
+        <div class="actions">
+          <div class="action-block">
+            <button type="button" class="btn-primary" id="btn-run" data-i18n="btn_run">INICIAR SIMULAÇÃO</button>
+            <small data-i18n="btn_run_help">Roda o modelo (KMeans + LSTM) com os parâmetros acima e gera a série de produtividade (GY, kg/ha). O resultado aparece na aba Dados e Gráficos.</small>
+          </div>
+          <div class="action-block">
+            <a class="btn-secondary" id="btn-excel" href="/api/export-excel" data-i18n="btn_excel">BAIXAR EXCEL</a>
+            <small data-i18n="btn_excel_help">Baixa todas as simulações desta sessão (planilhas de dados + relatório de parâmetros). Só funciona depois de pelo menos uma simulação.</small>
+          </div>
+        </div>
+      </footer>
+    </section>
+
+    <section class="panel tab-panel" id="panel-data">
+      <div class="data-grid">
+        <div class="chart-wrap">
+          <h2 data-i18n="chart_title">Produtividade de grãos (kg/ha)</h2>
+          <p class="chart-hint" data-i18n="chart_hint">Gráfico Plotly interativo: zoom, pan e exportar PNG pelo ícone de câmera na barra do gráfico.</p>
+          <div id="yield-chart" class="plotly-box"></div>
+        </div>
+        <div class="table-wrap">
+          <h2 data-i18n="table_title">Tabela da última simulação</h2>
+          <div class="table-scroll">
+            <table id="results-table">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel tab-panel" id="panel-guide">
+      <article class="about-card">
+        <h2 data-i18n="guide_title">Guia dos parâmetros e da resposta</h2>
+        <p data-i18n="guide_intro">Valores inspirados no ensaio público de 40 cultivares de soja (safra 2022/2023, Balsas–MA). O simulador sintetiza uma série diária com variação estatística e prevê GY.</p>
+        <ul class="guide-list">
+          <li data-i18n="guide_resp">Resposta principal: produtividade de grãos GY (kg/ha), umidade padronizada a 13%.</li>
+          <li data-i18n="guide_ngp">Também retorna NGP (leguminosas por planta), calculado a partir de NLP.</li>
+          <li data-i18n="guide_models">Modelos em runtime: KMeans (cluster) + LSTM (.keras).</li>
+          <li data-i18n="guide_actions">Fluxo: ajuste parâmetros → Iniciar simulação → veja gráfico/tabela → Baixar Excel (e PNG no Plotly).</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="panel tab-panel" id="panel-about">
+      <article class="about-card">
+        <h2 data-i18n="about_title">Missão e material de apoio</h2>
+        <p id="welcome-text">{{ welcome }}</p>
+        <ul>
+          <li data-i18n="about_public">Usa apenas dados públicos (UCI + artigo científico).</li>
+          <li data-i18n="about_didactic">Destinado a treinamento, testes, experimentação e fins didáticos.</li>
+          <li data-i18n="about_no_prop">Nenhuma informação proprietária é utilizada.</li>
+          <li><a href="https://doi.org/10.46420/TAES.e230005" target="_blank" rel="noopener">doi.org/10.46420/TAES.e230005</a></li>
+          <li><a href="https://github.com/marcosoares-92/IndustrialDataScienceWorkflow" target="_blank" rel="noopener">Industrial Data Science Workflow (idsw)</a></li>
+        </ul>
+        <p class="credits">
+          {{ author }}<br />
+          {{ ai_credit }}
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <div class="loader hidden" id="loader" aria-live="polite">
+    <div class="loader-box">
+      <div class="spinner"></div>
+      <p data-i18n="loading">Calculando produtividade de grãos…</p>
+    </div>
+  </div>
+</body>
+</html>
